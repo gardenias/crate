@@ -140,7 +140,8 @@ public class QueryAndFetchConsumer implements Consumer {
                 plannerContext,
                 table,
                 toCollect,
-                projections
+                projections,
+                table.relationId()
             );
             Integer requiredPageSize = context.requiredPageSize();
             if (requiredPageSize == null) {

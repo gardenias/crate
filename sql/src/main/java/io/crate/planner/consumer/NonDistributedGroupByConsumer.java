@@ -136,7 +136,8 @@ class NonDistributedGroupByConsumer implements Consumer {
                 plannerContext,
                 table,
                 splitPoints.leaves(),
-                ImmutableList.of(groupProjection));
+                ImmutableList.of(groupProjection),
+                table.relationId());
             Collect collect = new Collect(
                 collectPhase,
                 TopN.NO_LIMIT,

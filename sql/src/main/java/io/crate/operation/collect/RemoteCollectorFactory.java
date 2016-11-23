@@ -28,7 +28,6 @@ import io.crate.executor.transport.TransportActionProvider;
 import io.crate.jobs.JobContextService;
 import io.crate.metadata.Routing;
 import io.crate.operation.collect.collectors.RemoteCollector;
-import io.crate.operation.projectors.RowReceiver;
 import io.crate.planner.distribution.DistributionInfo;
 import io.crate.planner.node.dql.RoutedCollectPhase;
 import io.crate.planner.projection.Projections;
@@ -81,27 +80,32 @@ public class RemoteCollectorFactory {
         final String remoteNodeId = shardRouting.currentNodeId();
         assert remoteNodeId != null : "primaryShard not assigned :(";
         final String localNodeId = clusterService.localNode().getId();
-        final RoutedCollectPhase newCollectPhase = createNewCollectPhase(childJobId, collectPhase, index, shardId, remoteNodeId);
+        final RoutedCollectPhase newCollectPhase = createNewCollectPhase(
+            childJobId,
+            collectPhase,
+            index, shardId,
+            remoteNodeId,
+            collectPhase.relationId());
 
-        return new CrateCollector.Builder() {
-            @Override
-            public CrateCollector build(RowReceiver rowReceiver) {
-                return new RemoteCollector(
-                    childJobId,
-                    localNodeId,
-                    remoteNodeId,
-                    transportActionProvider.transportJobInitAction(),
-                    transportActionProvider.transportKillJobsNodeAction(),
-                    jobContextService,
-                    ramAccountingContext,
-                    rowReceiver,
-                    newCollectPhase);
-            }
-        };
+        return rowReceiver -> new RemoteCollector(
+            childJobId,
+            localNodeId,
+            remoteNodeId,
+            transportActionProvider.transportJobInitAction(),
+            transportActionProvider.transportKillJobsNodeAction(),
+            jobContextService,
+            ramAccountingContext,
+            rowReceiver,
+            newCollectPhase);
     }
 
     private RoutedCollectPhase createNewCollectPhase(
-        UUID childJobId, RoutedCollectPhase collectPhase, String index, Integer shardId, String nodeId) {
+        UUID childJobId,
+        RoutedCollectPhase collectPhase,
+        String index,
+        Integer shardId,
+        String nodeId,
+        byte relationId) {
 
         Routing routing = new Routing(TreeMapBuilder.<String, Map<String, List<Integer>>>newMapBuilder().put(nodeId,
             TreeMapBuilder.<String, List<Integer>>newMapBuilder().put(index, Collections.singletonList(shardId)).map()).map());
@@ -114,7 +118,8 @@ public class RemoteCollectorFactory {
             collectPhase.toCollect(),
             new ArrayList<>(Projections.shardProjections(collectPhase.projections())),
             collectPhase.whereClause(),
-            DistributionInfo.DEFAULT_BROADCAST
+            DistributionInfo.DEFAULT_BROADCAST,
+            relationId
         );
     }
 }

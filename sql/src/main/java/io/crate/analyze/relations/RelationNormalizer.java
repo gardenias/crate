@@ -182,7 +182,7 @@ final class RelationNormalizer {
 
         private QuerySpec currentParentQSpec;
 
-        public Context(Functions functions,
+        private Context(Functions functions,
                        List<Field> fields,
                        TransactionContext transactionContext) {
             this.functions = functions;
@@ -191,7 +191,7 @@ final class RelationNormalizer {
             this.transactionContext = transactionContext;
         }
 
-        public Collection<? extends Path> paths() {
+        private Collection<? extends Path> paths() {
             return Collections2.transform(fields, Field::path);
         }
     }
@@ -329,7 +329,7 @@ final class RelationNormalizer {
             }
 
             querySpec = mergeQuerySpec(querySpec, context.currentParentQSpec);
-            return new QueriedTable(table.tableRelation(), context.paths(), querySpec);
+            return new QueriedTable(table.relationId(), table.tableRelation(), context.paths(), querySpec);
         }
 
         @Override
@@ -344,7 +344,7 @@ final class RelationNormalizer {
             }
 
             querySpec = mergeQuerySpec(querySpec, context.currentParentQSpec);
-            return new QueriedDocTable(table.tableRelation(), context.paths(), querySpec);
+            return new QueriedDocTable(table.relationId(), table.tableRelation(), context.paths(), querySpec);
         }
 
         @Override
@@ -360,7 +360,9 @@ final class RelationNormalizer {
 
             querySpec = mergeQuerySpec(querySpec, context.currentParentQSpec);
             // must create a new MultiSourceSelect because paths and query spec changed
-            return new MultiSourceSelect(mapSourceRelations(multiSourceSelect),
+            return new MultiSourceSelect(
+                multiSourceSelect.relationId(),
+                mapSourceRelations(multiSourceSelect),
                 multiSourceSelect.outputSymbols(),
                 context.paths(),
                 querySpec,
@@ -404,31 +406,35 @@ final class RelationNormalizer {
         }
 
         @Override
-        public AnalyzedRelation visitMultiSourceSelect(MultiSourceSelect mss, Context context) {
-            QuerySpec querySpec = mss.querySpec();
+        public AnalyzedRelation visitMultiSourceSelect(MultiSourceSelect multiSourceSelect, Context context) {
+            QuerySpec querySpec = multiSourceSelect.querySpec();
             querySpec.normalize(context.normalizer, context.transactionContext);
             // must create a new MultiSourceSelect because paths and query spec changed
-            mss = new MultiSourceSelect(mapSourceRelations(mss),
-                mss.outputSymbols(), context.paths(), querySpec,
-                mss.joinPairs());
-            mss.pushDownQuerySpecs();
-            if (mss.sources().size() == 2) {
-                Iterator<RelationSource> it = mss.sources().values().iterator();
+            multiSourceSelect = new MultiSourceSelect(
+                multiSourceSelect.relationId(),
+                mapSourceRelations(multiSourceSelect),
+                multiSourceSelect.outputSymbols(),
+                context.paths(),
+                querySpec,
+                multiSourceSelect.joinPairs());
+            multiSourceSelect.pushDownQuerySpecs();
+            if (multiSourceSelect.sources().size() == 2) {
+                Iterator<RelationSource> it = multiSourceSelect.sources().values().iterator();
                 RelationSource leftSource = it.next();
                 RelationSource rightSource = it.next();
                 QualifiedName left = leftSource.qualifiedName();
                 QualifiedName right = rightSource.qualifiedName();
                 Rewriter.tryRewriteOuterToInnerJoin(
                     context.normalizer,
-                    JoinPairs.ofRelationsWithMergedConditions(left, right, mss.joinPairs(), false),
-                    mss.outputSymbols(),
-                    mss.querySpec(),
+                    JoinPairs.ofRelationsWithMergedConditions(left, right, multiSourceSelect.joinPairs(), false),
+                    multiSourceSelect.outputSymbols(),
+                    multiSourceSelect.querySpec(),
                     left,
                     right,
                     leftSource.querySpec(),
                     rightSource.querySpec());
             }
-            return mss;
+            return multiSourceSelect;
         }
     }
 }

@@ -110,7 +110,7 @@ public class LuceneShardCollectorProvider extends ShardCollectorProvider {
                 queryContext.minScore(),
                 executor,
                 Symbols.containsColumn(collectPhase.toCollect(), DocSysColumns.SCORE),
-                getCollectorContext(sharedShardContext.readerId(), docCtx),
+                getCollectorContext(sharedShardContext.readerId(), collectPhase.relationId(), docCtx),
                 jobCollectContext.queryPhaseRamAccountingContext(),
                 docCtx.topLevelInputs(),
                 docCtx.expressions()
@@ -143,7 +143,7 @@ public class LuceneShardCollectorProvider extends ShardCollectorProvider {
             );
             jobCollectContext.addSearcher(sharedShardContext.readerId(), searcher);
             ctx = docInputFactory.extractImplementations(collectPhase);
-            collectorContext = getCollectorContext(sharedShardContext.readerId(), ctx);
+            collectorContext = getCollectorContext(sharedShardContext.readerId(), collectPhase.relationId(), ctx);
         } catch (Throwable t) {
             if (searcher != null) {
                 searcher.close();
@@ -172,12 +172,12 @@ public class LuceneShardCollectorProvider extends ShardCollectorProvider {
         );
     }
 
-    private CollectorContext getCollectorContext(int readerId, InputFactory.Context ctx) {
+    private CollectorContext getCollectorContext(int readerId, byte relationId, InputFactory.Context ctx) {
         return new CollectorContext(
             indexShard.mapperService(),
             indexShard.indexFieldDataService(),
             new CollectorFieldsVisitor(ctx.expressions().size()),
-            readerId
-        );
+            readerId,
+            relationId);
     }
 }

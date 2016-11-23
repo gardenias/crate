@@ -119,17 +119,17 @@ public class CrateDocCollector implements CrateCollector, RepeatHandle {
         }
     }
 
-    public CrateDocCollector(ShardId shardId,
-                             IndexSearcher indexSearcher,
-                             Query query,
-                             Float minScore,
-                             Executor executor,
-                             boolean doScores,
-                             CollectorContext collectorContext,
-                             RamAccountingContext ramAccountingContext,
-                             RowReceiver rowReceiver,
-                             List<Input<?>> inputs,
-                             Collection<? extends LuceneCollectorExpression<?>> expressions) {
+    CrateDocCollector(ShardId shardId,
+                      IndexSearcher indexSearcher,
+                      Query query,
+                      Float minScore,
+                      Executor executor,
+                      boolean doScores,
+                      CollectorContext collectorContext,
+                      RamAccountingContext ramAccountingContext,
+                      RowReceiver rowReceiver,
+                      List<Input<?>> inputs,
+                      Collection<? extends LuceneCollectorExpression<?>> expressions) {
         this.shardId = shardId;
         this.indexSearcher = indexSearcher;
         this.query = query;

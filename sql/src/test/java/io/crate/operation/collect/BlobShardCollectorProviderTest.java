@@ -72,8 +72,8 @@ public class BlobShardCollectorProviderTest extends SQLHttpIntegrationTest {
             ImmutableList.of(),
             ImmutableList.of(),
             WhereClause.MATCH_ALL,
-            DistributionInfo.DEFAULT_BROADCAST
-        );
+            DistributionInfo.DEFAULT_BROADCAST,
+            (byte) 0);
 
         // No read Isolation
         Iterable<Row> iterable = getBlobRows(collectPhase, false);

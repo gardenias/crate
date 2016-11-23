@@ -41,19 +41,21 @@ class QueriedDocTableFetchPushDown {
 
     private final QuerySpec querySpec;
     private final DocTableRelation tableRelation;
+    private final byte relationId;
     private LinkedHashMap<Reference, FetchReference> fetchRefs;
     private LinkedHashMap<Reference, FetchReference> partitionRefs;
 
     // must not be static as the index could be changed due to usage on e.g. unions
-    private final InputColumn docIdCol = new InputColumn(0, DataTypes.LONG);
+    private final InputColumn fetchIdCol = new InputColumn(0, DataTypes.LONG);
 
     QueriedDocTableFetchPushDown(QueriedDocTable relation) {
+        this.relationId = relation.relationId();
         this.querySpec = relation.querySpec();
         this.tableRelation = relation.tableRelation();
     }
 
-    InputColumn docIdCol() {
-        return docIdCol;
+    InputColumn fetchIdCol() {
+        return fetchIdCol;
     }
 
     Collection<Reference> fetchRefs() {
@@ -84,7 +86,7 @@ class QueriedDocTableFetchPushDown {
     private FetchReference toFetchReference(Reference ref, LinkedHashMap<Reference, FetchReference> refs) {
         FetchReference fRef = refs.get(ref);
         if (fRef == null) {
-            fRef = new FetchReference(docIdCol, ref);
+            fRef = new FetchReference(fetchIdCol, ref);
             refs.put(ref, fRef);
         }
         return fRef;
@@ -111,15 +113,15 @@ class QueriedDocTableFetchPushDown {
 
         // build the subquery
         QuerySpec sub = new QuerySpec();
-        Reference docIdReference = DocSysColumns.forTable(tableRelation.tableInfo().ident(), DocSysColumns.DOCID);
+        Reference fetchIdReference = DocSysColumns.forTable(tableRelation.tableInfo().ident(), DocSysColumns.FETCHID);
 
         List<Symbol> outputs = new ArrayList<>();
         if (orderBy.isPresent()) {
             sub.orderBy(orderBy.get());
-            outputs.add(docIdReference);
+            outputs.add(fetchIdReference);
             outputs.addAll(context.querySymbols());
         } else {
-            outputs.add(docIdReference);
+            outputs.add(fetchIdReference);
         }
         for (Symbol symbol : querySpec.outputs()) {
             if (Symbols.containsColumn(symbol, DocSysColumns.SCORE) && !outputs.contains(symbol)) {
@@ -127,7 +129,7 @@ class QueriedDocTableFetchPushDown {
             }
         }
         sub.outputs(outputs);
-        QueriedDocTable subRelation = new QueriedDocTable(tableRelation, sub);
+        QueriedDocTable subRelation = new QueriedDocTable(relationId, tableRelation, sub);
         HashMap<Symbol, InputColumn> symbolMap = new HashMap<>(sub.outputs().size());
 
         int index = 0;
