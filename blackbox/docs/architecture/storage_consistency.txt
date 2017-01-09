@@ -149,13 +149,13 @@ since the information will be retrieved directly from the translog.
   consistency. Only the refresh of the ``IndexReader`` affects
   consistency.
 
-.. warning::
+.. caution::
 
-  See the `known issues`_ page for caveats.
+  Some rare types of outage can effect these consistency claims. See the `resiliency documentation`_ for details.
 
 .. _storage_consistency_cluster_meta_data:
 
-.. _known issues: /docs/scale/resilience/
+.. _resiliency documentation: /docs/scale/resilience/
 
 
 Cluster Meta Data
