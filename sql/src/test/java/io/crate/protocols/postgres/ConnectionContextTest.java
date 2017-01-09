@@ -24,12 +24,15 @@ package io.crate.protocols.postgres;
 
 import io.crate.action.sql.Option;
 import io.crate.action.sql.SQLOperations;
+import io.crate.breaker.CrateCircuitBreakerService;
 import io.crate.executor.Executor;
 import io.crate.operation.collect.StatsTables;
 import io.crate.testing.SQLExecutor;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.cluster.NoopClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +41,7 @@ import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.handler.codec.embedder.DecoderEmbedder;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -62,6 +66,11 @@ public class ConnectionContextTest {
     @Before
     public void setUp() throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
+        NodeSettingsService settingsService = new NodeSettingsService(Settings.EMPTY);
+        CircuitBreakerService esBreakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, settingsService);
+        CrateCircuitBreakerService breakerService = new CrateCircuitBreakerService(
+            Settings.EMPTY, settingsService, esBreakerService);
+
         sqlOperations = new SQLOperations(
             e.analyzer,
             e.planner,
@@ -71,7 +80,7 @@ public class ConnectionContextTest {
                     return mock(Executor.class);
                 }
             },
-            new StatsTables(Settings.EMPTY, new NodeSettingsService(Settings.EMPTY), threadPool),
+            new StatsTables(Settings.EMPTY, new NodeSettingsService(Settings.EMPTY), threadPool, breakerService),
             Settings.EMPTY,
             clusterService
         ) {

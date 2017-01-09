@@ -24,13 +24,13 @@ package io.crate.operation.collect;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Supplier;
 import com.twitter.jsr166e.LongAdder;
-import io.crate.core.collections.BlockingEvictingQueue;
-import io.crate.core.collections.NoopQueue;
+import io.crate.breaker.*;
 import io.crate.metadata.settings.CrateSettings;
 import io.crate.operation.reference.sys.job.JobContext;
 import io.crate.operation.reference.sys.job.JobContextLog;
 import io.crate.operation.reference.sys.operation.OperationContext;
 import io.crate.operation.reference.sys.operation.OperationContextLog;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
@@ -45,7 +45,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,14 +60,14 @@ import java.util.concurrent.atomic.AtomicReference;
 @Singleton
 public class StatsTables {
 
-    private final static BlockingQueue<OperationContextLog> NOOP_OPERATIONS_LOG = NoopQueue.instance();
-    private final static BlockingQueue<JobContextLog> NOOP_JOBS_LOG = NoopQueue.instance();
     private final static long QUEUE_CLEAN_INTERVAL = 5L;    // seconds
+    private static final NoopRamAccountingQueue NOOP_RAM_ACCOUNTING_QUEUE = NoopRamAccountingQueue.instance();
 
     private final Map<UUID, JobContext> jobsTable = new ConcurrentHashMap<>();
     private final Map<Tuple<Integer, UUID>, OperationContext> operationsTable = new ConcurrentHashMap<>();
-    final AtomicReference<Queue<JobContextLog>> jobsLog = new AtomicReference<>(NOOP_JOBS_LOG);
-    final AtomicReference<BlockingQueue<OperationContextLog>> operationsLog = new AtomicReference<>(NOOP_OPERATIONS_LOG);
+
+    final AtomicReference<RamAccountingQueue<JobContextLog>> jobsLog;
+    final AtomicReference<RamAccountingQueue<OperationContextLog>> operationsLog;
 
     private final JobsLogIterableGetter jobsLogIterableGetter;
     private final JobsIterableGetter jobsIterableGetter;
@@ -77,6 +76,8 @@ public class StatsTables {
     private final LongAdder activeRequests = new LongAdder();
 
     protected final NodeSettingsService.Listener listener = new NodeSettingListener();
+    private final CircuitBreaker circuitBreaker;
+    private final RamAccountingContext ramAccountingContext;
     private int initialOperationsLogSize;
     private int initialJobsLogSize;
     private TimeValue initialJobsLogExpiration;
@@ -93,12 +94,18 @@ public class StatsTables {
 
 
     @Inject
-    public StatsTables(Settings settings, NodeSettingsService nodeSettingsService, ThreadPool threadPool) {
-        this(settings, nodeSettingsService, threadPool.scheduler());
+    public StatsTables(Settings settings, NodeSettingsService nodeSettingsService, ThreadPool threadPool, CrateCircuitBreakerService breakerService) {
+        this(settings, nodeSettingsService, threadPool.scheduler(), breakerService);
     }
 
     @VisibleForTesting
-    StatsTables(Settings settings, NodeSettingsService nodeSettingsService, ScheduledExecutorService scheduledExecutorService) {
+    StatsTables(Settings settings, NodeSettingsService nodeSettingsService, ScheduledExecutorService scheduledExecutorService, CrateCircuitBreakerService breakerService) {
+        circuitBreaker = breakerService.getBreaker(CrateCircuitBreakerService.LOGS);
+        ramAccountingContext = new RamAccountingContext("jobsLogContext", circuitBreaker);
+
+        jobsLog = new AtomicReference<>(NOOP_RAM_ACCOUNTING_QUEUE);
+        operationsLog = new AtomicReference<>(NOOP_RAM_ACCOUNTING_QUEUE);
+
         int operationsLogSize = CrateSettings.STATS_OPERATIONS_LOG_SIZE.extract(settings);
         int jobsLogSize = CrateSettings.STATS_JOBS_LOG_SIZE.extract(settings);
         TimeValue jobsLogExpiration = CrateSettings.STATS_JOBS_LOG_EXPIRATION.extractTimeValue(settings);
@@ -170,7 +177,7 @@ public class StatsTables {
         if (!isEnabled() || jobContext == null) {
             return;
         }
-        Queue<JobContextLog> jobContextLogs = jobsLog.get();
+        RamAccountingQueue<JobContextLog> jobContextLogs = jobsLog.get();
         jobContextLogs.offer(new JobContextLog(jobContext, errorMessage));
     }
 
@@ -182,8 +189,9 @@ public class StatsTables {
      * {@link #logExecutionStart(UUID, String)} is only called after a Plan has been created and execution starts.
      */
     public void logPreExecutionFailure(UUID jobId, String stmt, String errorMessage) {
-        Queue<JobContextLog> jobContextLogs = jobsLog.get();
-        jobContextLogs.offer(new JobContextLog(new JobContext(jobId, stmt, System.currentTimeMillis()), errorMessage));
+        RamAccountingQueue<JobContextLog> jobContextLogs = jobsLog.get();
+        JobContext jobContext = new JobContext(jobId, stmt, System.currentTimeMillis());
+        jobContextLogs.offer(new JobContextLog(jobContext, errorMessage));
     }
 
     public void operationStarted(int operationId, UUID jobId, String name) {
@@ -205,7 +213,7 @@ public class StatsTables {
             return;
         }
         operationContext.usedBytes = usedBytes;
-        Queue<OperationContextLog> operationContextLogs = operationsLog.get();
+        RamAccountingQueue<OperationContextLog> operationContextLogs = operationsLog.get();
         operationContextLogs.offer(new OperationContextLog(operationContext, errorMessage));
     }
 
@@ -264,17 +272,17 @@ public class StatsTables {
 
     private void setOperationsLog(int size) {
         if (size == 0) {
-            operationsLog.set(NOOP_OPERATIONS_LOG);
+            operationsLog.set(NOOP_RAM_ACCOUNTING_QUEUE);
         } else {
-            Queue<OperationContextLog> oldQ = operationsLog.get();
-            BlockingEvictingQueue<OperationContextLog> newQ = new BlockingEvictingQueue<>(size);
-            newQ.addAll(oldQ);
+            RamAccountingQueue<OperationContextLog> oldQ = operationsLog.get();
+            FixedSizeRamAccountingQueue<OperationContextLog> newQ = new FixedSizeRamAccountingQueue<>(ramAccountingContext, size);
+            newQ.addAll(oldQ.getQueue());
             operationsLog.set(newQ);
         }
     }
 
     private void setJobsLog(int size, TimeValue expiration) {
-        Queue newQ;
+        RamAccountingQueue<JobContextLog> newQ = NOOP_RAM_ACCOUNTING_QUEUE;
         boolean isScheduledQueue = false;
 
         // Cancel the current jobs log queue scheduler if there is one
@@ -285,24 +293,21 @@ public class StatsTables {
 
         if (size == 0) {
             if (expiration.getMillis() > 0) {
-                newQ = new ConcurrentLinkedQueue<JobContextLog>();
+                newQ = new TimeExpiringRamAccountingQueue<>(ramAccountingContext);
                 isScheduledQueue = true;
             } else {
-                jobsLog.set(NOOP_JOBS_LOG);
-                return;
+                // use noop
             }
         } else {
             if (expiration.getMillis() > 0) {
                 LOGGER.info("Both stats.jobs_log_size and stats.jobs_log_expiration settings are set. Using the latter.");
-                newQ = new ConcurrentLinkedQueue<JobContextLog>();
+                newQ = new TimeExpiringRamAccountingQueue<>(ramAccountingContext);
                 isScheduledQueue = true;
             } else {
-                newQ = new BlockingEvictingQueue<JobContextLog>(size);
+                newQ = new FixedSizeRamAccountingQueue<>(ramAccountingContext, size);
             }
         }
-
-        Queue<JobContextLog> oldQ = jobsLog.get();
-        newQ.addAll(oldQ);
+        newQ.addAll(jobsLog.get().getQueue());
         jobsLog.set(newQ);
 
         if (isScheduledQueue) {
@@ -311,10 +316,9 @@ public class StatsTables {
     }
 
     private class ScheduledQueueCleaner implements Runnable {
-
         @Override
         public void run() {
-            removeExpiredLogs((ConcurrentLinkedQueue<JobContextLog>) jobsLog.get(), System.currentTimeMillis(), lastJobsLogExpiration.getMillis());
+            removeExpiredLogs(jobsLog.get(), System.currentTimeMillis(), lastJobsLogExpiration.getMillis());
         }
     }
 
@@ -380,14 +384,13 @@ public class StatsTables {
         return CrateSettings.STATS_OPERATIONS_LOG_SIZE.extract(settings, initialOperationsLogSize);
     }
 
-    static void removeExpiredLogs(ConcurrentLinkedQueue<JobContextLog> queue, long currentTimeMillis, long expirationTime) {
+    static void removeExpiredLogs(RamAccountingQueue<JobContextLog> queue, long currentTimeMillis, long expirationTime) {
         long expired = currentTimeMillis - expirationTime;
-        Iterator<JobContextLog> iter = queue.iterator();
-        while (iter.hasNext()) {
-            if (iter.next().ended() < expired) {
-                iter.remove();
+        for (JobContextLog log : queue) {
+            if (log.ended() < expired) {
+                queue.remove();
             } else {
-                return;
+                break;
             }
         }
     }

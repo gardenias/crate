@@ -23,12 +23,15 @@
 package io.crate.cluster.gracefulstop;
 
 import io.crate.action.sql.SQLOperations;
+import io.crate.breaker.CrateCircuitBreakerService;
 import io.crate.operation.collect.StatsTables;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.cluster.NoopClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,15 +55,20 @@ public class DecommissioningServiceTest {
 
     @Before
     public void setUp() throws Exception {
+        NodeSettingsService settingsService = new NodeSettingsService(Settings.EMPTY);
+        CircuitBreakerService esBreakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, settingsService);
+        CrateCircuitBreakerService breakerService = new CrateCircuitBreakerService(
+            Settings.EMPTY, settingsService, esBreakerService);
+
         threadPool = mock(ThreadPool.class, Answers.RETURNS_MOCKS.get());
-        statsTables = new StatsTables(Settings.EMPTY, mock(NodeSettingsService.class), threadPool);
+        statsTables = new StatsTables(Settings.EMPTY, mock(NodeSettingsService.class), threadPool, breakerService);
         sqlOperations = mock(SQLOperations.class, Answers.RETURNS_MOCKS.get());
         decommissioningService = new TestableDecommissioningService(
             Settings.EMPTY,
             new NoopClusterService(),
             statsTables,
             threadPool,
-            mock(NodeSettingsService.class),
+            settingsService,
             sqlOperations,
             mock(TransportClusterHealthAction.class),
             mock(TransportClusterUpdateSettingsAction.class)

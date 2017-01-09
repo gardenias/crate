@@ -59,19 +59,33 @@ public class RamAccountingContext {
     /**
      * Add bytes to the context and maybe break
      *
-     * @param bytes bytes to be added to
+     * @param bytes bytes to be added
      * @throws CircuitBreakingException
      */
     public void addBytes(long bytes) throws CircuitBreakingException {
-        if (closed) {
-            return;
-        }
-        if (bytes == 0) {
+        addBytes(bytes, true);
+    }
+
+    /**
+     * Add bytes to the context without breaking
+     *
+     * @param bytes bytes to be added
+     */
+    public void addBytesWithoutBreaking(long bytes) {
+        addBytes(bytes, false);
+    }
+
+    private void addBytes(long bytes, boolean shouldBreak) throws CircuitBreakingException {
+        if (closed || bytes == 0) {
             return;
         }
         long currentFlushBuffer = flushBuffer.addAndGet(bytes);
         if (currentFlushBuffer >= FLUSH_BUFFER_SIZE) {
-            flush(currentFlushBuffer);
+            if (shouldBreak) {
+                flush(currentFlushBuffer);
+            } else {
+                flushWithoutBreaking(currentFlushBuffer);
+            }
         }
     }
 
@@ -99,6 +113,41 @@ public class RamAccountingContext {
             totalBytes.addAndGet(bytes);
             flushBuffer.addAndGet(-bytes);
         }
+    }
+
+    /**
+     * Flush the {@code bytes} to the breaker, incrementing the total
+     * bytes and adjusting the buffer.
+     *
+     * @param bytes long value of bytes to be flushed to the breaker
+     */
+    private void flushWithoutBreaking(long bytes) {
+        if (bytes == 0) {
+            return;
+        }
+        breaker.addWithoutBreaking(bytes);
+        tripped = true;
+        totalBytes.addAndGet(bytes);
+        flushBuffer.addAndGet(-bytes);
+    }
+
+    /**
+     * Add bytes to the context and maybe break
+     *
+     * @param bytes bytes to be removed
+     * @throws CircuitBreakingException
+     */
+    public void removeBytes(long bytes) {
+        addBytes(bytes * -1L);
+    }
+
+    /**
+     * Remove bytes to the context without breaking
+     *
+     * @param bytes bytes to be removed
+     */
+    public void removeBytesWithoutBreaking(long bytes) throws CircuitBreakingException {
+        addBytesWithoutBreaking(bytes * -1L);
     }
 
     /**
@@ -132,6 +181,10 @@ public class RamAccountingContext {
      */
     public boolean trippedBreaker() {
         return tripped;
+    }
+
+    public boolean exceededBreaker() {
+        return breaker.getUsed() >= breaker.getLimit();
     }
 
     /**

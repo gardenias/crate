@@ -169,6 +169,8 @@ public class SQLPlugin extends Plugin {
 
         clusterModule.registerClusterDynamicSetting(CrateCircuitBreakerService.QUERY_CIRCUIT_BREAKER_LIMIT_SETTING, Validator.MEMORY_SIZE);
         clusterModule.registerClusterDynamicSetting(CrateCircuitBreakerService.QUERY_CIRCUIT_BREAKER_OVERHEAD_SETTING, Validator.NON_NEGATIVE_DOUBLE);
+        clusterModule.registerClusterDynamicSetting(CrateCircuitBreakerService.LOGS_CIRCUIT_BREAKER_LIMIT_SETTING, Validator.MEMORY_SIZE);
+        clusterModule.registerClusterDynamicSetting(CrateCircuitBreakerService.LOGS_CIRCUIT_BREAKER_OVERHEAD_SETTING, Validator.NON_NEGATIVE_DOUBLE);
 
         clusterModule.registerClusterDynamicSetting("crate.internal.decommission.*", Validator.EMPTY);
 

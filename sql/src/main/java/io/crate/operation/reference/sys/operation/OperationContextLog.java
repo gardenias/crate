@@ -21,11 +21,14 @@
 
 package io.crate.operation.reference.sys.operation;
 
+import io.crate.breaker.Estimable;
+import io.crate.breaker.RamAccountingContext;
+
 import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-public class OperationContextLog {
+public class OperationContextLog implements Estimable {
 
     private final OperationContext operationContext;
     @Nullable
@@ -78,5 +81,20 @@ public class OperationContextLog {
     @Nullable
     public String errorMessage() {
         return errorMessage;
+    }
+
+    @Override
+    public long estimateSize() {
+        long size = 0L;
+
+        // OperationContextLog
+        size += 32L; // 24 bytes (ref+headers) + 8 bytes (ended)
+        size += errorMessage() == null ? 0 : errorMessage().length();  // error message
+
+        // OperationContext
+        size += 60L; // 24 bytes (headers) + 4 bytes (id) + 16 bytes (uuid) + 8 bytes (started) + 8 bytes (usedBytes)
+        size += name().length();
+
+        return RamAccountingContext.roundUp(size);
     }
 }

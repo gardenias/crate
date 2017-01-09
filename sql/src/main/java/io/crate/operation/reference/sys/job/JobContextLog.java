@@ -22,11 +22,13 @@
 package io.crate.operation.reference.sys.job;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.crate.breaker.Estimable;
+import io.crate.breaker.RamAccountingContext;
 
 import javax.annotation.Nullable;
 import java.util.UUID;
 
-public class JobContextLog {
+public class JobContextLog implements Estimable {
 
     private final JobContext jobContext;
 
@@ -67,5 +69,20 @@ public class JobContextLog {
     @Nullable
     public String errorMessage() {
         return errorMessage;
+    }
+
+    @Override
+    public long estimateSize() {
+        long size = 0L;
+
+        // JobContextLog
+        size += 32L; // 24 bytes (ref+headers) + 8 bytes (ended)
+        size += errorMessage == null ? 0 : errorMessage.length();
+
+        // JobContext
+        size += 52L; // 24 bytes (ref+headers) + 4 bytes (id) + 8 bytes (started) + 16 bytes (uuid)
+        size += statement().length();
+
+        return RamAccountingContext.roundUp(size);
     }
 }
