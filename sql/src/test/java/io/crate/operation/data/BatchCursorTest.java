@@ -294,8 +294,9 @@ public class BatchCursorTest {
     public void testLimitProjector() throws Exception {
         DataCursor d = new DataCursor(new Object[][]{{1, 2}, {3, 4}, {5, 6}, {7, 8}}, 2, 2);
         BatchProjector lp = new LimitProjector(3);
+        List<BatchProjector> projectors = Arrays.asList(lp);
         BatchCollector c = new BatchCollector();
-        BatchConsumer chain = lp.andThen(c);
+        BatchConsumer chain = c.projected(projectors);
         SomeDataSource s = new SomeDataSource(chain, d);
         s.doCollect();
 

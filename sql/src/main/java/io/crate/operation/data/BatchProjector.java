@@ -22,14 +22,19 @@
 
 package io.crate.operation.data;
 
-import java.util.Objects;
 import java.util.function.Function;
 
-public interface BatchProjector extends BatchReceiver, Function<BatchCursor, BatchCursor> {
+public interface BatchProjector extends Function<BatchCursor, BatchCursor> {
 
     default BatchConsumer andThen(BatchConsumer after) {
-        Objects.requireNonNull(after);
         return (BatchCursor t) -> after.accept(apply(t));
+    }
+
+    /*
+    returns true if the result cursor of the projection is always scrollable
+     */
+    default boolean isScrollable() {
+        return false;
     }
 
 }

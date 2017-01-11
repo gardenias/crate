@@ -22,8 +22,17 @@
 
 package io.crate.operation.data;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 public interface BatchConsumer extends BatchReceiver, Consumer<BatchCursor> {
+
+    default BatchConsumer projected(List<BatchProjector> projectors){
+        return new ProjectedBatchConsumer(projectors, this);
+    }
+
+    default void fail(Throwable t){
+
+    }
 
 }
