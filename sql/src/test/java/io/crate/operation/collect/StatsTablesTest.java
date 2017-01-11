@@ -40,7 +40,6 @@ import org.junit.Test;
 
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -97,7 +96,7 @@ public class StatsTablesTest extends CrateUnitTest {
         // switch jobs_log queue
         stats.listener.onRefreshSettings(Settings.builder()
             .put(CrateSettings.STATS_JOBS_LOG_EXPIRATION.settingName(), "10s").build());
-        assertThat(stats.jobsLog.get(), Matchers.instanceOf(ConcurrentLinkedQueue.class));
+        assertThat(stats.jobsLog.get(), Matchers.instanceOf(TimeExpiringRamAccountingQueue.class));
 
         stats.listener.onRefreshSettings(Settings.builder()
             .put(CrateSettings.STATS_JOBS_LOG_SIZE.settingName(), 0)
@@ -106,7 +105,7 @@ public class StatsTablesTest extends CrateUnitTest {
 
         stats.listener.onRefreshSettings(Settings.builder()
             .put(CrateSettings.STATS_JOBS_LOG_EXPIRATION.settingName(), "10s").build());
-        assertThat(stats.jobsLog.get(), Matchers.instanceOf(ConcurrentLinkedQueue.class));
+        assertThat(stats.jobsLog.get(), Matchers.instanceOf(TimeExpiringRamAccountingQueue.class));
 
         // logs got wiped:
         stats.listener.onRefreshSettings(Settings.builder()
