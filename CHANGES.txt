@@ -5,6 +5,11 @@ Changes for Crate
 Unreleased
 ==========
 
+ - Updated crate-admin to ``1.1.0`` which includes the following change:
+
+    - Breaking: Updated the admin-ui build to be compatible with future crate
+      versions which will serve the admin-ui from root `/`.
+
  - Serve admin ui from `/`
 
  - Updated crate-admin to ``1.0.4`` which includes the following change:
