@@ -70,7 +70,13 @@ public class ESClusterUpdateSettingsTask extends JobTask {
         for (Map.Entry<String, List<Expression>> entry : settingsMap.entrySet()) {
             String settingsName = entry.getKey();
             SettingsApplier settingsApplier = CrateSettings.getSettingsApplier(settingsName);
-            settingsApplier.apply(settings, parameters, Iterables.getOnlyElement(entry.getValue()));
+            List<Expression> value = entry.getValue();
+            // value can be null to reset settings
+            if (value == null) {
+                settings.put(settingsName, (String) null);
+            } else {
+                settingsApplier.apply(settings, parameters, Iterables.getOnlyElement(value));
+            }
         }
         return settings.build();
     }

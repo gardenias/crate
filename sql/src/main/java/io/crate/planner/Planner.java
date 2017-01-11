@@ -487,11 +487,16 @@ public class Planner extends AnalyzedStatementVisitor<Planner.Context, Plan> {
 
     @Override
     public Plan visitResetAnalyzedStatement(ResetAnalyzedStatement resetStatement, Context context) {
-        if (resetStatement.settingsToRemove().isEmpty()) {
+        Set<String> settingsToRemove = resetStatement.settingsToRemove();
+        if (settingsToRemove.isEmpty()) {
             return new NoopPlan(context.jobId());
         }
-        return new ESClusterUpdateSettingsPlan(context.jobId(),
-            resetStatement.settingsToRemove(), resetStatement.settingsToRemove());
+
+        Map<String, List<Expression>> nullSettings = new HashMap<>(settingsToRemove.size(), 1);
+        for (String setting : settingsToRemove) {
+            nullSettings.put(setting, null);
+        }
+        return new ESClusterUpdateSettingsPlan(context.jobId(), nullSettings, nullSettings);
     }
 
     @Override

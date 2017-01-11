@@ -25,9 +25,10 @@ import io.crate.planner.PlanVisitor;
 import io.crate.planner.UnnestablePlan;
 import io.crate.sql.tree.Expression;
 
-import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 public class ESClusterUpdateSettingsPlan extends UnnestablePlan {
 
@@ -49,13 +50,6 @@ public class ESClusterUpdateSettingsPlan extends UnnestablePlan {
 
     public ESClusterUpdateSettingsPlan(UUID jobId, Map<String, List<Expression>> persistentSettings) {
         this(jobId, persistentSettings, persistentSettings); // override stale transient settings too in that case
-    }
-
-    public ESClusterUpdateSettingsPlan(UUID jobId, Set<String> persistentSettingsToRemove, Set<String> transientSettingsToRemove) {
-        this(jobId,
-            persistentSettingsToRemove.stream().collect(Collectors.toMap(Function.identity(), null)),
-            transientSettingsToRemove.stream().collect(Collectors.toMap(Function.identity(), null))
-            );
     }
 
     public Map<String, List<Expression>> persistentSettings() {
