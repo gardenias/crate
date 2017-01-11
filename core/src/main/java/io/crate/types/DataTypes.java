@@ -275,6 +275,7 @@ public final class DataTypes {
         .put("date", DataTypes.TIMESTAMP)
         .put("string", DataTypes.STRING)
         .put("keyword", DataTypes.STRING)
+        .put("text", DataTypes.STRING)
         .put("boolean", DataTypes.BOOLEAN)
         .put("byte", DataTypes.BYTE)
         .put("short", DataTypes.SHORT)

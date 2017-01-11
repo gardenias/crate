@@ -46,7 +46,6 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -255,46 +254,58 @@ public class DocIndexMetaData {
         return type;
     }
 
-    private Reference.IndexType getColumnIndexType(Map<String, Object> columnProperties) {
-        String indexType = toStringOrNull(columnProperties.get("index"));
-        String analyzerName = (String) columnProperties.get("analyzer");
-        if (indexType != null) {
-            if (indexType.equals(Reference.IndexType.NOT_ANALYZED.toString())) {
-                return Reference.IndexType.NOT_ANALYZED;
-            } else if (indexType.equals(Reference.IndexType.NO.toString())) {
-                return Reference.IndexType.NO;
-            } else if (indexType.equals(Reference.IndexType.ANALYZED.toString())
-                       && analyzerName != null && !analyzerName.equals("keyword")) {
+    /**
+     * Get the IndexType from columnProperties.
+     * <br />
+     * Properties might look like:
+     * <pre>
+     *     {
+     *         "type": "integer"
+     *     }
+     *
+     *
+     *     {
+     *         "type": "text",
+     *         "analyzer": "english"
+     *     }
+     *
+     *
+     *     {
+     *          "type": "text",
+     *          "fields": {
+     *              "keyword": {
+     *                  "type": "keyword",
+     *                  "ignore_above": "256"
+     *              }
+     *          }
+     *     }
+     *
+     *     {
+     *         "type": "date",
+     *         "index": "no"
+     *     }
+     *
+     *     {
+     *          "type": "keyword",
+     *          "index": false
+     *     }
+     * </pre>
+     */
+    private static Reference.IndexType getColumnIndexType(Map<String, Object> columnProperties) {
+        Object index = columnProperties.get("index");
+        if (index == null) {
+            if ("text".equals(columnProperties.get("type"))) {
                 return Reference.IndexType.ANALYZED;
             }
-        } // default indexType is analyzed so need to check analyzerName if indexType is null
-        else if (analyzerName != null && !analyzerName.equals("keyword")) {
-            return Reference.IndexType.ANALYZED;
+            return Reference.IndexType.NOT_ANALYZED;
         }
-        return Reference.IndexType.NOT_ANALYZED;
-    }
-
-    /**
-     * Convert value into a string or null if it's a boolean or one of  ("no", "off", "false", "0")
-     */
-    @Nullable
-    private static String toStringOrNull(Object value) {
-        if (value == null) {
-            return null;
+        if ("no".equals(index)) {
+            return Reference.IndexType.NO;
         }
-        if (value instanceof String) {
-            boolean hasIndex = Booleans.parseBoolean((String) value, false);
-            if (hasIndex) {
-                return (String) value;
-            }
-            return null;
+        if ("not_analyzed".equals(index)) {
+            return Reference.IndexType.NOT_ANALYZED;
         }
-        if (value instanceof Boolean) {
-            boolean hasIndex = (Boolean) value;
-            assert hasIndex == false : "hasIndex should be false";
-            return null;
-        }
-        throw new IllegalArgumentException("Cannot convert argument to string: " + value);
+        return Reference.IndexType.ANALYZED;
     }
 
     private static ColumnIdent childIdent(@Nullable ColumnIdent ident, String name) {
