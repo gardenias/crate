@@ -67,5 +67,12 @@ public class FixedSizeRamAccountingQueue<T extends Estimable> extends RamAccount
         return removed;
     }
 
+    @Override
+    public void clear() {
+        for (T t : queue) {
+            context.removeBytesWithoutBreaking(t.estimateSize());
+        }
+        super.clear();
+    }
 }
 

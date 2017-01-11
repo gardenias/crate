@@ -22,8 +22,6 @@
 
 package io.crate.breaker;
 
-
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.Queue;
 
@@ -41,15 +39,15 @@ public abstract class RamAccountingQueue<T> implements Iterable<T> {
         return queue;
     }
 
-    public void addAll(Collection<? extends T> c) {
-        if (c == null) {
+    public void transferTo(RamAccountingQueue<T> q) {
+        if (q == null) {
             throw new NullPointerException();
         }
-        if (c == this) {
+        if (q == this) {
             throw new IllegalArgumentException();
         }
-        for (T e : c) {
-            offer(e);
+        for (T t : queue) {
+           q.offer(queue.remove());
         }
     }
 
@@ -63,5 +61,9 @@ public abstract class RamAccountingQueue<T> implements Iterable<T> {
 
     public Iterator<T> iterator() {
         return queue.iterator();
+    }
+
+    public void clear() {
+        queue.clear();
     }
 }

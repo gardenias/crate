@@ -55,4 +55,11 @@ public class TimeExpiringRamAccountingQueue<T extends Estimable> extends RamAcco
         return removed;
     }
 
+    @Override
+    public void clear() {
+        for (T t : queue) {
+            context.removeBytesWithoutBreaking(t.estimateSize());
+        }
+        super.clear();
+    }
 }

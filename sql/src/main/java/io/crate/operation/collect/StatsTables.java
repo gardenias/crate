@@ -43,7 +43,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
@@ -272,11 +271,12 @@ public class StatsTables {
 
     private void setOperationsLog(int size) {
         if (size == 0) {
+            // clear accounted memory
+            operationsLog.get().clear();
             operationsLog.set(NOOP_RAM_ACCOUNTING_QUEUE);
         } else {
-            RamAccountingQueue<OperationContextLog> oldQ = operationsLog.get();
             FixedSizeRamAccountingQueue<OperationContextLog> newQ = new FixedSizeRamAccountingQueue<>(ramAccountingContext, size);
-            newQ.addAll(oldQ.getQueue());
+            operationsLog.get().transferTo(newQ);
             operationsLog.set(newQ);
         }
     }
@@ -296,7 +296,8 @@ public class StatsTables {
                 newQ = new TimeExpiringRamAccountingQueue<>(ramAccountingContext);
                 isScheduledQueue = true;
             } else {
-                // use noop
+                // clear accounted memory
+                jobsLog.get().clear();
             }
         } else {
             if (expiration.getMillis() > 0) {
@@ -307,7 +308,7 @@ public class StatsTables {
                 newQ = new FixedSizeRamAccountingQueue<>(ramAccountingContext, size);
             }
         }
-        newQ.addAll(jobsLog.get().getQueue());
+        jobsLog.get().transferTo(newQ);
         jobsLog.set(newQ);
 
         if (isScheduledQueue) {
