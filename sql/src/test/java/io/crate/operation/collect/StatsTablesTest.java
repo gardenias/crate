@@ -21,11 +21,7 @@
 
 package io.crate.operation.collect;
 
-import io.crate.breaker.CrateCircuitBreakerService;
-import io.crate.breaker.RamAccountingContext;
-import io.crate.breaker.RamAccountingQueue;
-import io.crate.breaker.TimeExpiringRamAccountingQueue;
-import io.crate.core.collections.NoopQueue;
+import io.crate.breaker.*;
 import io.crate.metadata.settings.CrateSettings;
 import io.crate.operation.reference.sys.job.JobContext;
 import io.crate.operation.reference.sys.job.JobContextLog;
@@ -83,7 +79,7 @@ public class StatsTablesTest extends CrateUnitTest {
         assertThat(stats.lastOperationsLogSize, is(CrateSettings.STATS_OPERATIONS_LOG_SIZE.defaultValue()));
 
         // even though logSizes are > 0 it must be a NoopQueue because the stats are disabled
-        assertThat(stats.jobsLog.get(), Matchers.instanceOf(NoopQueue.class));
+        assertThat(stats.jobsLog.get(), Matchers.instanceOf(NoopRamAccountingQueue.class));
         Settings settings = Settings.builder()
             .put(CrateSettings.STATS_ENABLED.settingName(), true)
             .put(CrateSettings.STATS_JOBS_LOG_SIZE.settingName(), 100)
@@ -106,7 +102,7 @@ public class StatsTablesTest extends CrateUnitTest {
         stats.listener.onRefreshSettings(Settings.builder()
             .put(CrateSettings.STATS_JOBS_LOG_SIZE.settingName(), 0)
             .put(CrateSettings.STATS_JOBS_LOG_EXPIRATION.settingName(), "0s").build());
-        assertThat(stats.jobsLog.get(), Matchers.instanceOf(NoopQueue.class));
+        assertThat(stats.jobsLog.get(), Matchers.instanceOf(NoopRamAccountingQueue.class));
 
         stats.listener.onRefreshSettings(Settings.builder()
             .put(CrateSettings.STATS_JOBS_LOG_EXPIRATION.settingName(), "10s").build());
@@ -115,7 +111,7 @@ public class StatsTablesTest extends CrateUnitTest {
         // logs got wiped:
         stats.listener.onRefreshSettings(Settings.builder()
             .put(CrateSettings.STATS_ENABLED.settingName(), false).build());
-        assertThat(stats.jobsLog.get(), Matchers.instanceOf(NoopQueue.class));
+        assertThat(stats.jobsLog.get(), Matchers.instanceOf(NoopRamAccountingQueue.class));
         assertThat(stats.isEnabled(), is(false));
     }
 

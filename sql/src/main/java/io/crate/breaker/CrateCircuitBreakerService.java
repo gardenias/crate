@@ -115,7 +115,8 @@ public class CrateCircuitBreakerService extends CircuitBreakerService {
         @Override
         public void onRefreshSettings(Settings settings) {
             // Query breaker settings
-            registerBreakerSettings(settings,
+            registerBreakerSettings(QUERY,
+                settings,
                 QUERY_CIRCUIT_BREAKER_LIMIT_SETTING,
                 DEFAULT_QUERY_CIRCUIT_BREAKER_LIMIT,
                 QUERY_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -123,7 +124,8 @@ public class CrateCircuitBreakerService extends CircuitBreakerService {
                 CrateCircuitBreakerService.this.queryBreakerSettings);
 
             // Logs breaker settings
-            registerBreakerSettings(settings,
+            registerBreakerSettings(LOGS,
+                settings,
                 LOGS_CIRCUIT_BREAKER_LIMIT_SETTING,
                 DEFAULT_LOGS_CIRCUIT_BREAKER_LIMIT,
                 LOGS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -131,7 +133,8 @@ public class CrateCircuitBreakerService extends CircuitBreakerService {
                 CrateCircuitBreakerService.this.logsBreakerSettings);
         }
 
-        private void registerBreakerSettings(Settings newSettings,
+        private void registerBreakerSettings(String name,
+                                             Settings newSettings,
                                              String limitSettingName,
                                              String defaultLimit,
                                              String overheadSettingName,
@@ -151,7 +154,7 @@ public class CrateCircuitBreakerService extends CircuitBreakerService {
                 ));
             if (limit != oldBreakerSettings.getLimit() || overhead != oldBreakerSettings.getOverhead()) {
                 BreakerSettings breakerSettings = new BreakerSettings(
-                    QUERY, limit, overhead,
+                    name, limit, overhead,
                     oldBreakerSettings.getType());
                 registerBreaker(breakerSettings);
             }

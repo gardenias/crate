@@ -40,11 +40,8 @@ public abstract class RamAccountingQueue<T> implements Iterable<T> {
     }
 
     public void transferTo(RamAccountingQueue<T> q) {
-        if (q == null) {
-            throw new NullPointerException();
-        }
-        if (q == this) {
-            throw new IllegalArgumentException();
+        if (q == null || q == this) {
+            return;
         }
         for (T t : queue) {
            q.offer(queue.remove());
